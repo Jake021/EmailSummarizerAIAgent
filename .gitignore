@@ -1,0 +1,8 @@
+node_modules/
+.env
+credentials.json
+token.json
+digest-*.md
+
+msal-cache.json
+data/

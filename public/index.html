@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inbox Digest</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<script>
+  // Apply the saved theme before first paint to avoid a flash.
+  try { const t = localStorage.getItem("theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+</script>
+<style>
+  /* ---------- Themes. Default (and "pastel") is the light frosted-glass look. ---------- */
+  :root, [data-theme="pastel"] {
+    --bg: linear-gradient(160deg, #ffa3d1 0%, #e9a9f6 38%, #b8b8ff 68%, #a6d8ff 100%);
+    --panel: rgba(255,255,255,.42); --edge: rgba(255,255,255,.72); --blur: 18px; --side: rgba(255,255,255,.38);
+    --text: #2b2142; --muted: rgba(43,33,66,.62); --chip: rgba(255,255,255,.65);
+    --pill-bg: #ffffff; --pill-text: #2b2142; --field: rgba(255,255,255,.65);
+    --btn-bg: #2b2142; --btn-fg: #ffffff; --accent: #6a45ff;
+    --bad: #c2254a; --bad-bg: rgba(255,90,120,.18); --due-bg: rgba(255,150,60,.24); --due-fg: #a24a00;
+    --shadow: 0 8px 30px rgba(120,80,170,.18);
+    --all-a: #ff8fd1;  --all-b: #a98bff;
+    --attn-a: #ffa477; --fyi-a: #86adff; --low-a: #84e6b9; --spam-a: #ff7f95;
+    --attn-b: #ffcf7a; --fyi-b: #79e8fa; --low-b: #c2ee7a; --spam-b: #f0558a;
+    --tint: 26%;
+  }
+  [data-theme="aurora"], [data-theme="ember"], [data-theme="forest"], [data-theme="slate"] {
+    --edge: transparent; --blur: 0px; --side: rgba(255,255,255,.05);
+    --text: #eef2ff; --muted: rgba(238,242,255,.62); --chip: rgba(255,255,255,.10);
+    --pill-bg: rgba(255,255,255,.14); --pill-text: #ffffff; --field: rgba(255,255,255,.14);
+    --btn-bg: rgba(255,255,255,.14); --btn-fg: #ffffff;
+    --bad: #ff8a80; --bad-bg: rgba(255,80,70,.16); --due-bg: rgba(255,179,71,.18); --due-fg: #ffc46b;
+    --shadow: 0 6px 18px rgba(0,0,0,.25);
+    --spam-a: #ef4444; --spam-b: #be123c; --tint: 24%;
+  }
+  [data-theme="aurora"] { --bg: linear-gradient(135deg, #0b1730, #0e2b3f); --panel: rgba(4,10,26,.50); --accent: #22d3ee;
+    --all-a:#8b5cf6; --all-b:#3b82f6; --attn-a:#ff5d6c; --attn-b:#ffb347; --fyi-a:#6366f1; --fyi-b:#22d3ee; --low-a:#14b8a6; --low-b:#a3e635; }
+  [data-theme="ember"] { --bg: linear-gradient(135deg, #1c1210, #2e1813); --panel: rgba(18,8,6,.55); --accent: #fb923c;
+    --all-a:#fb923c; --all-b:#f43f5e; --attn-a:#ef4444; --attn-b:#f97316; --fyi-a:#f59e0b; --fyi-b:#fde047; --low-a:#78716c; --low-b:#d6a77a; }
+  [data-theme="forest"] { --bg: linear-gradient(135deg, #07201a, #0e3328); --panel: rgba(2,16,12,.55); --accent: #84cc16;
+    --all-a:#84cc16; --all-b:#10b981; --attn-a:#fbbf24; --attn-b:#f97316; --fyi-a:#06b6d4; --fyi-b:#3b82f6; --low-a:#10b981; --low-b:#5eead4; }
+  [data-theme="slate"] { --bg: linear-gradient(135deg, #12151c, #1e2434); --panel: rgba(8,10,16,.55); --accent: #818cf8;
+    --all-a:#6366f1; --all-b:#a78bfa; --attn-a:#f43f5e; --attn-b:#fb7185; --fyi-a:#38bdf8; --fyi-b:#818cf8; --low-a:#64748b; --low-b:#94a3b8; }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body { color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg) fixed; }
+  .app { display: grid; grid-template-columns: 230px 1fr; min-height: 100vh; }
+  .glass, .side, .col, .card {
+    background: var(--panel); border: 1px solid var(--edge);
+    -webkit-backdrop-filter: blur(var(--blur)); backdrop-filter: blur(var(--blur));
+  }
+  .orb { width: 38px; height: 38px; border-radius: 50%; flex: none;
+         background: radial-gradient(circle at 32% 30%, #fff 0%, var(--all-a) 38%, var(--all-b) 100%);
+         box-shadow: 0 4px 14px rgba(120,60,170,.35); }
+
+  /* ---------- Sidebar ---------- */
+  .side { border-width: 0 1px 0 0; padding: 26px 18px; display: flex; flex-direction: column; gap: 26px;
+          position: sticky; top: 0; height: 100vh; background: var(--side); }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand .bn { font-weight: 700; font-size: 15px; line-height: 1.2; }
+  .brand .bs { font-size: 12px; color: var(--muted); text-transform: capitalize; }
+  .sec-label { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 0 14px 8px; }
+  nav { display: flex; flex-direction: column; gap: 4px; }
+  nav button { all: unset; cursor: pointer; display: flex; align-items: center; gap: 10px; padding: 9px 14px;
+               font-size: 14px; color: var(--muted); border-radius: 999px; }
+  nav button:hover { color: var(--text); }
+  nav button.active { background: var(--pill-bg); color: var(--pill-text); box-shadow: 0 2px 10px rgba(0,0,0,.08); }
+  nav .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  nav .cnt { margin-left: auto; font-size: 12px; opacity: .75; }
+  .side-bottom { margin-top: auto; display: flex; flex-direction: column; gap: 14px; }
+  .themes { display: flex; gap: 8px; justify-content: center; }
+  .themes button { all: unset; cursor: pointer; width: 18px; height: 18px; border-radius: 50%;
+                   border: 2px solid transparent; box-shadow: 0 0 0 1px rgba(0,0,0,.12); }
+  .themes button.active { border-color: var(--text); }
+  #refresh { all: unset; cursor: pointer; text-align: center; padding: 12px 16px; border-radius: 999px; font-weight: 600; font-size: 14px;
+             background: var(--btn-bg); color: var(--btn-fg); box-shadow: var(--shadow); }
+  #refresh:hover { filter: brightness(1.12); }
+  #refresh:disabled { opacity: .6; cursor: default; }
+
+  /* ---------- Main ---------- */
+  main { padding: 26px 30px 48px; min-width: 0; }
+  .head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  h1 { font-size: 28px; font-weight: 600; margin: 0; letter-spacing: -.01em; }
+  .sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .tools { display: flex; gap: 10px; flex-wrap: wrap; }
+  .pill { background: var(--field); border: 0; color: var(--text); border-radius: 999px; padding: 9px 18px; font: inherit; font-size: 13px; outline: none; }
+  .pill::placeholder { color: var(--muted); }
+  #search { width: 220px; max-width: 100%; }
+  select.pill { cursor: pointer; }
+  select.pill option { color: #111; }
+
+  .banner { margin-top: 16px; padding: 10px 16px; border-radius: 14px; font-size: 14px; }
+  .banner.err { background: var(--bad-bg); color: var(--bad); }
+  .banner.info { background: var(--chip); }
+
+  .hero { display: grid; grid-template-columns: minmax(250px, 320px) 1fr; gap: 14px; margin-top: 20px; }
+  .hero > div { border-radius: 22px; padding: 16px 20px; box-shadow: var(--shadow); min-width: 0; }
+  .greet { display: flex; align-items: center; gap: 16px; }
+  .greet .orb { width: 54px; height: 54px; }
+  .greet .hi { font-size: 13px; color: var(--muted); }
+  .greet .clock { font-size: 34px; font-weight: 300; line-height: 1.1; letter-spacing: -.02em; }
+  .summary .eyebrow { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  #overview-text { font-size: 14.5px; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .chip { font-size: 12px; padding: 3px 11px; border-radius: 999px; background: var(--chip); }
+
+  /* Board: one tall rounded column per category, like the days of a week */
+  .board { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; margin-top: 16px; align-items: stretch; }
+  .col { border-radius: 24px; padding: 14px; box-shadow: var(--shadow); min-height: max(360px, calc(100vh - 330px)); }
+  .col-head { display: flex; align-items: center; gap: 8px; margin: 2px 6px 12px; font-size: 13px; font-weight: 600; }
+  .col-head .n { margin-left: auto; font-weight: 500; color: var(--muted); }
+  .col-list { display: flex; flex-direction: column; gap: 10px; max-height: max(300px, calc(100vh - 390px)); overflow-y: auto; padding: 2px; }
+  .col-empty { color: var(--muted); font-size: 13px; text-align: center; padding: 28px 0; }
+  .list { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .empty { color: var(--muted); padding: 40px 0; text-align: center; }
+
+  /* Email cards: soft tint by category, no heavy borders */
+  .card { position: relative; border-radius: 16px; padding: 11px 14px; transition: transform .15s, box-shadow .15s, filter .15s;
+          background: linear-gradient(color-mix(in srgb, var(--c, transparent) var(--tint), transparent),
+                                      color-mix(in srgb, var(--c, transparent) var(--tint), transparent)), var(--panel); }
+  .card.attention { --c: var(--attn-a); } .card.fyi { --c: var(--fyi-a); }
+  .card.low { --c: var(--low-a); }       .card.spam { --c: var(--spam-a); }
+  .card.clickable { cursor: pointer; }
+  .card.clickable:hover, .card.clickable:focus-visible {
+    box-shadow: 0 0 0 1.5px var(--edge), 0 10px 26px rgba(60,30,100,.22); transform: translateY(-2px); filter: brightness(1.06); outline: none; }
+  .card.clickable:active { transform: translateY(0); }
+  .time { font-size: 11px; color: var(--muted); }
+  .subject { font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
+  .from { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+  .summary-t { margin-top: 5px; font-size: 13px; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .list .summary-t { -webkit-line-clamp: unset; display: block; font-size: 14px; }
+  .why { margin-top: 5px; font-size: 12px; color: var(--bad); overflow-wrap: anywhere; }
+  .badges { margin-top: 7px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .badge { font-size: 11px; padding: 2px 9px; border-radius: 999px; background: var(--chip); color: var(--muted); }
+  .badge.due { background: var(--due-bg); color: var(--due-fg); font-weight: 600; }
+  .badge.bad { background: var(--bad-bg); color: var(--bad); font-weight: 600; }
+  .badge.promo { color: var(--text); }
+
+  @media (max-width: 900px) {
+    .app { grid-template-columns: 1fr; }
+    .side { position: static; height: auto; flex-direction: row; flex-wrap: wrap; align-items: center; padding: 14px 16px; gap: 12px; border-width: 0 0 1px 0; }
+    nav { flex-direction: row; flex-wrap: wrap; }
+    .sec-label { display: none; }
+    .side-bottom { margin-top: 0; flex-direction: row; align-items: center; margin-left: auto; }
+    main { padding: 16px 16px 40px; }
+    .hero { grid-template-columns: 1fr; }
+    .col { min-height: 0; } .col-list { max-height: none; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand">
+      <div class="orb"></div>
+      <div><div class="bn">Inbox Digest</div><div class="bs" id="brand-sub">Email</div></div>
+    </div>
+    <div>
+      <div class="sec-label">Inbox</div>
+      <nav id="nav"></nav>
+    </div>
+    <div class="side-bottom">
+      <div class="themes" id="themes"></div>
+      <button id="refresh">↻ Refresh</button>
+    </div>
+  </aside>
+
+  <main>
+    <div class="head">
+      <div>
+        <h1 id="today">Today</h1>
+        <div class="sub" id="meta">Loading...</div>
+      </div>
+      <div class="tools">
+        <input class="pill" id="search" type="search" placeholder="Search emails" aria-label="Search emails">
+        <select class="pill" id="history" aria-label="Digest history"></select>
+      </div>
+    </div>
+
+    <div id="banners"></div>
+
+    <div class="hero">
+      <div class="glass greet">
+        <div class="orb"></div>
+        <div>
+          <div class="hi" id="greet">Hello</div>
+          <div class="clock" id="clock">--:--</div>
+        </div>
+      </div>
+      <div class="glass summary" id="overview" hidden>
+        <div class="eyebrow">Today's summary</div>
+        <div id="overview-text"></div>
+        <div class="chips" id="chips"></div>
+      </div>
+    </div>
+
+    <div id="sections"></div>
+  </main>
+</div>
+
+<script>
+"use strict";
+const FILTERS = [
+  { key: "all", label: "All mail", dot: "var(--all-a)" },
+  { key: "attention", label: "Needs attention", dot: "var(--attn-a)" },
+  { key: "fyi", label: "FYI", dot: "var(--fyi-a)" },
+  { key: "low", label: "Low priority", dot: "var(--low-a)" },
+  { key: "spam", label: "Spam / phishing", dot: "var(--spam-a)" },
+];
+const SECTIONS = [
+  { key: "attention", title: "Needs attention", dot: "var(--attn-a)" },
+  { key: "fyi", title: "FYI", dot: "var(--fyi-a)" },
+  { key: "low", title: "Low priority", dot: "var(--low-a)" },
+  { key: "spam", title: "Spam & phishing", dot: "var(--spam-a)" },
+];
+const THEMES = [
+  { id: "pastel", name: "Pastel", a: "#ff8fd1", b: "#86adff" },
+  { id: "aurora", name: "Aurora", a: "#8b5cf6", b: "#22d3ee" },
+  { id: "ember", name: "Ember", a: "#ef4444", b: "#fde047" },
+  { id: "forest", name: "Forest", a: "#84cc16", b: "#06b6d4" },
+  { id: "slate", name: "Slate", a: "#6366f1", b: "#94a3b8" },
+];
+
+let digests = [], selected = 0, filter = "all", status = {};
+
+const $ = (id) => document.getElementById(id);
+// Email content is untrusted: it is only ever inserted with textContent / append(), never innerHTML.
+function el(tag, props = {}, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) { if (k === "class") n.className = v; else n[k] = v; }
+  for (const k of kids) if (k != null) n.append(k);
+  return n;
+}
+function dot(color) { const d = el("span", { class: "dot" }); d.style.background = color; return d; }
+
+function ago(iso) {
+  const s = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (s < 60) return "just now";
+  if (s < 3600) return Math.floor(s / 60) + " min ago";
+  if (s < 86400) return Math.floor(s / 3600) + " h ago";
+  return new Date(iso).toLocaleString();
+}
+function shortDate(s) {
+  const d = new Date(s);
+  return isNaN(d) ? "" : d.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+function timeOf(s) {
+  const d = new Date(s);
+  return isNaN(d) ? "" : d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+function safeLink(url) { return typeof url === "string" && url.startsWith("https://") ? url : ""; }
+// Older stored digests only have a "suspicious" flag; newer ones have a full verdict.
+function verdictOf(i) { return i.verdict || (i.suspicious ? "spam" : "legit"); }
+function catOf(i) { const v = verdictOf(i); return v === "spam" || v === "phishing" ? "spam" : i.category; }
+
+/* ---------- Clock / greeting ---------- */
+function tickClock() {
+  const d = new Date(), h = d.getHours();
+  $("greet").textContent = h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+  $("clock").textContent = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  $("today").textContent = d.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" });
+}
+
+/* ---------- Theme ---------- */
+function applyTheme(id) {
+  document.documentElement.dataset.theme = id;
+  try { localStorage.setItem("theme", id); } catch {}
+  for (const b of $("themes").children) b.classList.toggle("active", b.dataset.id === id);
+}
+function initThemes() {
+  $("themes").replaceChildren(...THEMES.map((t) => {
+    const b = el("button", { title: t.name, ariaLabel: t.name + " theme" });
+    b.dataset.id = t.id;
+    b.style.background = `linear-gradient(135deg, ${t.a}, ${t.b})`;
+    b.onclick = () => applyTheme(t.id);
+    return b;
+  }));
+  let saved = null;
+  try { saved = localStorage.getItem("theme"); } catch {}
+  applyTheme(THEMES.some((t) => t.id === saved) ? saved : "pastel");
+}
+
+/* ---------- Data ---------- */
+async function load() {
+  const [d, s] = await Promise.all([
+    fetch("/api/digests").then((r) => r.json()),
+    fetch("/api/status").then((r) => r.json()),
+  ]);
+  digests = d; status = s;
+  if (selected >= digests.length) selected = 0;
+  render();
+}
+
+/* ---------- Email cards ---------- */
+function card(i) {
+  const link = safeLink(i.link);
+  const v = verdictOf(i);
+  const badges = el("div", { class: "badges" });
+  if (v === "phishing") badges.append(el("span", { class: "badge bad", textContent: "Phishing" }));
+  else if (v === "spam") badges.append(el("span", { class: "badge bad", textContent: "Spam" }));
+  else if (v === "promotional") badges.append(el("span", { class: "badge promo", textContent: "Promotional" }));
+  if (i.inJunk) badges.append(el("span", { class: "badge", textContent: "In Junk folder" }));
+  if (i.deadline) badges.append(el("span", { class: "badge due", textContent: "Due: " + i.deadline }));
+
+  const why = (v === "spam" || v === "phishing") && i.reason
+    ? el("div", { class: "why", textContent: "Why: " + i.reason }) : null;
+  const c = el("div", { class: "card " + catOf(i) + (link ? " clickable" : "") },
+    el("div", { class: "time", textContent: shortDate(i.date) }),
+    el("div", { class: "subject", textContent: i.subject }),
+    el("div", { class: "from", textContent: i.from }),
+    el("div", { class: "summary-t", textContent: i.summary }),
+    why, badges.children.length ? badges : null);
+  if (link) {
+    // Whole card opens the email.
+    const open = () => window.open(link, "_blank", "noopener,noreferrer");
+    c.tabIndex = 0;
+    c.setAttribute("role", "link");
+    c.title = "Open email";
+    c.onclick = () => { if (!String(window.getSelection())) open(); }; // don't navigate while selecting text
+    c.onkeydown = (e) => { if (e.key === "Enter") open(); };
+  }
+  return c;
+}
+
+function renderList(cur) {
+  const q = $("search").value.trim().toLowerCase();
+  const match = (i) => !q || [i.from, i.subject, i.summary].some((x) => (x || "").toLowerCase().includes(q));
+  const root = $("sections");
+  root.replaceChildren();
+
+  if (filter === "all") {
+    const board = el("div", { class: "board" });
+    for (const s of SECTIONS) {
+      const list = cur.items.filter((i) => catOf(i) === s.key && match(i));
+      const body = el("div", { class: "col-list" });
+      if (list.length) for (const i of list) body.append(card(i));
+      else body.append(el("div", { class: "col-empty", textContent: "Nothing here" }));
+      board.append(el("div", { class: "col" },
+        el("div", { class: "col-head" }, dot(s.dot), s.title, el("span", { class: "n", textContent: list.length })),
+        body));
+    }
+    root.append(board);
+    return;
+  }
+
+  const list = cur.items.filter((i) => catOf(i) === filter && match(i));
+  if (!list.length) { root.append(el("div", { class: "empty", textContent: "Nothing here." })); return; }
+  root.append(el("div", { class: "list" }, ...list.map(card)));
+}
+
+/* ---------- Render ---------- */
+function render() {
+  const cur = digests[selected];
+  const banners = $("banners");
+  banners.replaceChildren();
+  if (status.lastError) banners.append(el("div", { class: "banner err" }, status.lastError));
+  if (status.lastNote) banners.append(el("div", { class: "banner info" }, status.lastNote));
+
+  const hist = $("history");
+  hist.replaceChildren(...digests.map((d, i) =>
+    el("option", { value: i, textContent: (i === 0 ? "Latest: " : "") + shortDate(d.id) + " (" + d.emailCount + ")" })));
+  hist.value = selected;
+  hist.hidden = digests.length < 2;
+
+  const btn = $("refresh");
+  btn.disabled = !!status.running;
+  btn.textContent = status.running ? "Summarizing..." : "↻ Refresh";
+
+  const count = (k) => (cur ? cur.items.filter((i) => k === "all" || catOf(i) === k).length : 0);
+  $("nav").replaceChildren(...FILTERS.map((f) => {
+    const b = el("button", { class: filter === f.key ? "active" : "" }, dot(f.dot), f.label,
+      el("span", { class: "cnt", textContent: cur ? count(f.key) : "" }));
+    b.onclick = () => { filter = f.key; render(); };
+    return b;
+  }));
+
+  if (!cur) {
+    $("meta").textContent = status.running ? "Working on your first digest..." : "No digests yet. Click Refresh.";
+    $("sections").replaceChildren();
+    $("overview").hidden = true; $("search").hidden = true;
+    return;
+  }
+
+  $("meta").textContent = `Updated ${ago(cur.id)} · ${cur.emailCount} emails`;
+  $("brand-sub").textContent = cur.providers.join(", ");
+  $("search").hidden = false;
+  $("overview").hidden = false;
+  $("overview-text").textContent = cur.overview;
+  $("chips").replaceChildren(
+    el("span", { class: "chip", textContent: `${count("attention")} need attention` }),
+    el("span", { class: "chip", textContent: `${count("spam")} spam` }),
+    el("span", { class: "chip", textContent: `${count("all")} total` }));
+
+  renderList(cur);
+}
+
+async function refresh() {
+  await fetch("/api/refresh", { method: "POST" });
+  status.running = true; render();
+  const timer = setInterval(async () => {
+    status = await fetch("/api/status").then((r) => r.json());
+    if (!status.running) { clearInterval(timer); selected = 0; await load(); }
+  }, 2000);
+}
+
+$("refresh").onclick = refresh;
+$("history").onchange = (e) => { selected = Number(e.target.value); render(); };
+$("search").oninput = render;
+initThemes();
+tickClock();
+setInterval(tickClock, 1000);
+load().then(() => { if (status.running) refresh(); });
+setInterval(() => { if (!status.running) load(); }, 60000); // pick up digests made elsewhere
+</script>
+</body>
+</html>

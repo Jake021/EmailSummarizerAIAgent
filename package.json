@@ -1,0 +1,19 @@
+{
+  "name": "email-summarizer",
+  "version": "1.0.0",
+  "description": "AI agent that reads your Gmail (read-only) and summarizes it with Claude",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "auth": "node src/index.js --auth-only",
+    "dashboard": "node src/server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.4.0",
+    "@azure/msal-node": "^7.1.2",
+    "googleapis": "^189.0.0"
+  }
+}
